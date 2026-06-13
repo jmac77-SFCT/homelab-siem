@@ -1,0 +1,44 @@
+# Secrets
+.env
+.env.local
+*.env
+!.env.example
+
+# Tailscale auth keys
+*tailscale-authkey*
+auth-key*
+
+# Telegram bot tokens / chat IDs as files
+*telegram*token*
+*bot-token*
+
+# Local-only overrides
+docker-compose.override.yml
+configs/**/local-*
+
+# Logs / runtime artifacts (should never be in repo anyway)
+*.log
+logs/
+data/
+loki-data/
+grafana-data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+*~
+
+# Python (in case any helper scripts get added)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Backups
+*.bak
+*.backup
+backup-*/
