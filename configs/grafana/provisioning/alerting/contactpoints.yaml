@@ -16,7 +16,11 @@ contactPoints:
         type: telegram
         settings:
           bottoken: ${TELEGRAM_BOT_TOKEN}
-          chatid: "${TELEGRAM_CHAT_ID}"
+          # !!str forces a string type. Grafana strips the quotes when it
+          # interpolates the env var, so a plain "${...}" arrives as a number
+          # and fails validation (chatid must be a string). The !!str tag
+          # survives interpolation and keeps it a string.
+          chatid: !!str ${TELEGRAM_CHAT_ID}
           # Plain text (no parse_mode) to avoid HTML/Markdown escaping issues.
           message: |
             🚨 homelab-siem: {{ len .Alerts.Firing }} Suricata alert(s) firing
