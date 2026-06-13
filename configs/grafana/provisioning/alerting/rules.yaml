@@ -19,7 +19,7 @@ groups:
     interval: 1m
     rules:
       - uid: suricata_alert_fired
-        title: Suricata IDS alert
+        title: Suricata IDS alerts detected
         condition: C
         for: 0m
         # No data = no alerts seen = nothing wrong, so don't page.
