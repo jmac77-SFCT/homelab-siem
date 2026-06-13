@@ -77,6 +77,16 @@ ok "Config rendered."
 # ---------------------------------------------------------------------------
 # 3. Pull the ET Open ruleset into /var/lib/suricata/rules/suricata.rules
 # ---------------------------------------------------------------------------
+# Install our disable list FIRST (suricata-update reads /etc/suricata/disable.conf
+# automatically). It drops ICS/SCADA rules (DNP3/Modbus) that reference
+# app-layer parsers our lean config doesn't enable — without this they fail to
+# load and fail the config test below.
+DISABLE_CONF="$REPO_DIR/configs/suricata/disable.conf"
+if [[ -f "$DISABLE_CONF" ]]; then
+  info "Installing suricata-update disable list..."
+  sudo install -m 644 "$DISABLE_CONF" /etc/suricata/disable.conf
+fi
+
 info "Updating rules (Emerging Threats Open)..."
 sudo suricata-update --no-test || warn "suricata-update reported issues; continuing to config test."
 ok "Rules updated."
