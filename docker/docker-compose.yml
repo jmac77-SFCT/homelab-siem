@@ -80,6 +80,11 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       # Datasource + dashboards are provisioned from files (read-only in UI).
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      # Passed through to the provisioned Telegram contact point (Grafana
+      # interpolates ${TELEGRAM_*} in configs/grafana/provisioning/alerting/).
+      # Values come from .env via --env-file; blank is fine until you set them.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - ../configs/grafana/provisioning:/etc/grafana/provisioning:ro
       - ../dashboards:/var/lib/grafana/dashboards:ro

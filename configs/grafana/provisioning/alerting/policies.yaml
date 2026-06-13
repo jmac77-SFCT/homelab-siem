@@ -1,0 +1,16 @@
+# ============================================================================
+# Grafana notification policy (routing tree)
+#
+# Routes ALL firing alerts to the Telegram contact point. group_wait batches
+# a burst of alerts briefly; repeat_interval keeps Telegram from re-pinging you
+# about the same ongoing condition more than hourly.
+# ============================================================================
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: telegram
+    group_by: ['alertname']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 1h

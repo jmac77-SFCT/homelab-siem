@@ -54,7 +54,15 @@ else
   warn "Falling back to sudo. To avoid this, re-login after 03 or run 'newgrp docker'."
   SUDO="sudo"
 fi
-compose() { $SUDO docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"; }
+# Include the tailscale override if 05-configure-tailscale.sh has generated it,
+# so re-running this script never silently drops Grafana's tailscale0 binding.
+COMPOSE_ARGS=(--env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+OVERRIDE_FILE="$REPO_DIR/docker/docker-compose.override.yml"
+if [[ -f "$OVERRIDE_FILE" ]]; then
+  COMPOSE_ARGS+=(-f "$OVERRIDE_FILE")
+  info "Including docker-compose.override.yml (tailscale binding)."
+fi
+compose() { $SUDO docker compose "${COMPOSE_ARGS[@]}" "$@"; }
 
 # ---------------------------------------------------------------------------
 # 3. Pull + launch
