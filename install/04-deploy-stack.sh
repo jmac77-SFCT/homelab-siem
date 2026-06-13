@@ -44,6 +44,21 @@ sudo chown -R 10001:10001 "$LOG_MOUNT/loki"
 sudo chown -R 472:472     "$LOG_MOUNT/grafana"
 ok "loki -> uid 10001, grafana -> uid 472."
 
+# Render the Telegram contact point from its template into a gitignored file
+# with literal values (Grafana mis-types env-interpolated chat ids). No-op if
+# Telegram isn't configured.
+CP_TMPL="$REPO_DIR/configs/grafana/provisioning/alerting/contactpoints.yaml.template"
+CP_OUT="${CP_TMPL%.template}"
+if [[ -f "$CP_TMPL" ]]; then
+  command -v envsubst >/dev/null 2>&1 || sudo apt-get install -y gettext-base
+  envsubst '${TELEGRAM_BOT_TOKEN} ${TELEGRAM_CHAT_ID}' < "$CP_TMPL" > "$CP_OUT"
+  if [[ -z "${TELEGRAM_BOT_TOKEN:-}" ]]; then
+    warn "TELEGRAM_BOT_TOKEN is empty — Telegram alerts won't deliver until set."
+  else
+    ok "Rendered Telegram contact point."
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 # 2. Decide whether we need sudo for docker (group may not be active yet)
 # ---------------------------------------------------------------------------

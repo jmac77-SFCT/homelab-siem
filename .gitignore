@@ -16,6 +16,9 @@ auth-key*
 docker-compose.override.yml
 configs/**/local-*
 
+# Rendered-at-deploy secrets (contain real token; rendered from .template)
+configs/grafana/provisioning/alerting/contactpoints.yaml
+
 # Logs / runtime artifacts (should never be in repo anyway)
 *.log
 logs/

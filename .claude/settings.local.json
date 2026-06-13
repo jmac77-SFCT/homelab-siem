@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(wsl bash -c \"ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 pi2@jmacpi2.local 'ip -4 addr show wlan0; echo ---; ip -4 addr show eth0'\")"
+    ]
+  }
+}
