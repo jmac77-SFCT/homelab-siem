@@ -110,6 +110,12 @@ info "Configuring systemd service..."
 sudo mkdir -p /etc/systemd/system/suricata.service.d
 sudo tee /etc/systemd/system/suricata.service.d/override.conf >/dev/null <<EOF
 [Service]
+# The distro unit is Type=forking (expects 'suricata -D' to daemonize and write
+# a pidfile). We run Suricata in the FOREGROUND so systemd supervises it
+# directly, so we MUST switch to Type=simple and clear the inherited PIDFile —
+# otherwise systemd waits for a fork that never happens and the start times out.
+Type=simple
+PIDFile=
 User=root
 Group=root
 # Port-mirror frames are addressed to other hosts, so the NIC must be in
