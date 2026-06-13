@@ -60,6 +60,55 @@ If you went with **Option A**: on the Pi, set up Wi-Fi with
 `ping -c1 1.1.1.1` works over Wi-Fi, then verify you can reach it at its Wi-Fi
 address before touching the switch.
 
+### Option A — make Wi-Fi the default route (REQUIRED, easy to miss)
+
+By default the Pi prefers the wired link for *all* traffic (lower route
+metric), so even with Wi-Fi connected the internet still goes out `eth0`:
+
+```bash
+ip route show default
+# default via 192.168.2.1 dev eth0  proto dhcp metric 100   <- wins
+# default via 192.168.2.1 dev wlan0 proto dhcp metric 600
+```
+
+The moment the mirror makes `eth0` receive-only, that `eth0` default route
+becomes a black hole and the Pi loses internet (Docker pulls, apt, Tailscale)
+even though SSH-over-Wi-Fi still works. Fix it by demoting `eth0`'s route
+metric below `wlan0`'s.
+
+On Raspberry Pi OS with **NetworkManager + netplan** (connections named
+`netplan-eth0` etc.), edit the eth0 netplan file under `/etc/netplan/` and add
+the two override blocks:
+
+```yaml
+    eth0:
+      renderer: NetworkManager
+      dhcp4: true
+      dhcp6: true
+      dhcp4-overrides:
+        route-metric: 1000      # higher than wlan0's 600 = least preferred
+      dhcp6-overrides:
+        route-metric: 1000
+      # ...leave the existing networkmanager: uuid/name block intact...
+```
+
+Then apply and **reboot** (a reboot is the reliable way to flush the old DHCP
+lease's stale metric-100 route — applying in place tends to leave duplicate
+default routes and can briefly drop NetworkManager):
+
+```bash
+sudo netplan generate && sudo reboot
+```
+
+After reboot, confirm Wi-Fi is now the default path:
+
+```bash
+ip route show default      # eth0 metric 1000, wlan0 metric 600 (no metric 100)
+ip route get 1.1.1.1       # must say: dev wlan0
+```
+
+Only once `1.1.1.1` routes via `wlan0` is it safe to enable the mirror.
+
 ---
 
 ## 2. Set up the mirror in the UniFi console
