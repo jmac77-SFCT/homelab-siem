@@ -1,0 +1,34 @@
+# ============================================================================
+# Grafana datasource provisioning: Loki
+#
+# Mounted read-only at /etc/grafana/provisioning/datasources (see compose).
+# Grafana reads this on startup and auto-creates the datasource, so you never
+# click through the UI to add it. Because it's provisioned from a file, it
+# shows as read-only in the Grafana UI (edit it here, not in the browser).
+# ============================================================================
+
+apiVersion: 1
+
+# Remove a previously-provisioned datasource with this name if the file is
+# deleted, keeping Grafana's state in sync with the repo.
+deleteDatasources:
+  - name: Loki
+    orgId: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy            # Grafana's backend queries Loki, not your browser
+    # Internal Docker DNS name + port. Same network as Grafana (see compose).
+    url: http://loki:3100
+    orgId: 1
+    # Make this the default so the dashboard's panels resolve without us
+    # hardcoding a datasource UID everywhere.
+    isDefault: true
+    # Stable UID so dashboards-as-code can reference it explicitly too.
+    uid: loki
+    version: 1
+    editable: false
+    jsonData:
+      # Cap server-side how far a single query can fan out, protecting the Pi.
+      maxLines: 2000

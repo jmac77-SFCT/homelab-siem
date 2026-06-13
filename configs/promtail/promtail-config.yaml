@@ -1,0 +1,76 @@
+# ============================================================================
+# Promtail config for homelab-siem
+#
+# Job: tail Suricata's eve.json, turn each JSON event into a Loki stream, and
+# push it to Loki over the internal Docker network.
+#
+# Runs as a container (see docker/docker-compose.yml). Paths below are paths
+# INSIDE the container:
+#   /var/log/suricata/eve.json   <- bind-mount of ${LOG_MOUNT}/suricata (ro)
+#   /var/lib/promtail            <- named volume, persists the read position
+#
+# Label strategy (kept deliberately low-cardinality so Loki stays light on the
+# Pi):
+#   LABELS (indexed, cheap to filter on):      event_type, src_ip
+#   STRUCTURED METADATA (queryable, not indexed): dest_ip, signature, rrname
+#   FULL EVENT: the raw JSON line is always kept, so any other field is
+#               reachable at query time with `| json` in Grafana.
+# ============================================================================
+
+server:
+  # Container-internal only. This port is NOT published to the host in
+  # docker-compose, so Promtail is unreachable from the LAN/Tailscale.
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  # Persisted on a named volume so a restart resumes where it left off
+  # instead of re-shipping the whole eve.json.
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  # Internal Docker DNS name of the Loki service. Never leaves the host.
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: suricata-eve
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: suricata
+          __path__: /var/log/suricata/eve.json
+
+    pipeline_stages:
+      # 1) Parse the eve.json line. Nested fields use dotted expressions.
+      - json:
+          expressions:
+            event_type: event_type
+            src_ip: src_ip
+            dest_ip: dest_ip
+            timestamp: timestamp
+            signature: alert.signature
+            rrname: dns.rrname
+
+      # 2) Use Suricata's own event time as the log timestamp (not ingest time).
+      #    eve.json default format looks like 2026-06-13T09:15:00.123456+0000,
+      #    which this explicit Go layout parses (note -0700, not -07:00).
+      - timestamp:
+          source: timestamp
+          format: "2006-01-02T15:04:05.999999-0700"
+
+      # 3) Promote ONLY low-cardinality fields to indexed labels.
+      #    event_type is 2 values (alert/dns); src_ip is ~your device count
+      #    plus the occasional external alert source.
+      - labels:
+          event_type:
+          src_ip:
+
+      # 4) High-cardinality, still-useful fields go to structured metadata:
+      #    filterable in Grafana without exploding Loki's index.
+      #    (Requires allow_structured_metadata + tsdb schema v13 in Loki —
+      #    configured in configs/loki/loki-config.yaml.)
+      - structured_metadata:
+          dest_ip:
+          signature:
+          rrname:

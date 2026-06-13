@@ -1,0 +1,28 @@
+# ============================================================================
+# Grafana dashboard provisioning
+#
+# Tells Grafana to load every dashboard JSON it finds under
+# /var/lib/grafana/dashboards. The compose file mounts the repo's ../dashboards
+# directory there (read-only), so dashboards/devices-calling-out.json shows up
+# automatically on startup — no manual import.
+# ============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: homelab-siem
+    orgId: 1
+    # Top-level (no folder). Change to a folder name to group dashboards.
+    folder: ""
+    type: file
+    # Don't let UI edits silently diverge from the repo: changes made in the
+    # browser are discarded on reload. Edit the JSON in git instead.
+    disableDeletion: false
+    allowUiUpdates: false
+    # Re-scan this often for changed/added JSON files.
+    updateIntervalSeconds: 30
+    options:
+      # Path INSIDE the container (compose mounts ../dashboards here).
+      path: /var/lib/grafana/dashboards
+      # Mirror any subfolder structure under that path into Grafana folders.
+      foldersFromFilesStructure: true

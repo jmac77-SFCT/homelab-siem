@@ -1,0 +1,121 @@
+# ============================================================================
+# Loki config for homelab-siem (single-binary mode, Raspberry Pi 5)
+#
+# Storage: local filesystem (no S3/cloud). All chunks + index live under /loki
+# INSIDE the container, which docker-compose bind-mounts to ${LOG_MOUNT}/loki
+# on the external HDD. That's where your ~45GB of alerts+DNS actually lives.
+#
+# Retention: 90 days, enforced by the compactor (it deletes expired chunks).
+#
+# Tuned for a Pi: aggressive chunk flushing keeps the ingester's RAM footprint
+# small, query parallelism is capped, and there's no clustering overhead
+# (replication_factor 1, in-memory ring).
+#
+# Targets Loki 3.x.
+# ============================================================================
+
+# Single-user homelab: no multi-tenancy, no auth at the Loki layer. Loki is
+# bound to 127.0.0.1 only (see docker-compose), so nothing on the LAN can
+# reach it regardless.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+  # Keep gRPC message size sane for a small box.
+  grpc_server_max_recv_msg_size: 8388608
+  grpc_server_max_send_msg_size: 8388608
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+# tsdb + schema v13 is REQUIRED for the structured metadata that Promtail
+# attaches (dest_ip / signature / rrname). Don't downgrade this schema.
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/tsdb-index
+    cache_location: /loki/tsdb-cache
+  filesystem:
+    directory: /loki/chunks
+
+# ---- Compactor: this is what actually enforces 90-day retention ----------
+compactor:
+  working_directory: /loki/compactor
+  delete_request_store: filesystem
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 50
+  compaction_interval: 10m
+
+limits_config:
+  # 90 days = 2160h. Applies to all streams (we only keep alerts+DNS).
+  retention_period: 2160h
+
+  # Required for Promtail's structured_metadata stage (needs schema v13).
+  allow_structured_metadata: true
+
+  # Enable the /loki/api/v1/index/volume endpoint so Grafana "logs volume"
+  # panels and the dashboard work.
+  volume_enabled: true
+
+  # Don't reject Suricata events that arrive slightly out of order / late
+  # (eve.json can lag under load). 7-day window is generous and safe here.
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+  # Modest ingest ceilings for a home LAN's alert+DNS volume. Raise these only
+  # if you later add flow logging.
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+  max_streams_per_user: 10000
+  max_label_names_per_series: 15
+
+  # Cap query cost so a wide dashboard query can't OOM the Pi.
+  max_query_parallelism: 4
+  max_query_series: 5000
+
+# ---- Ingester: flush early/often to keep RAM low on the Pi ---------------
+ingester:
+  chunk_idle_period: 2m       # flush a stream after 2m of silence
+  chunk_target_size: 1048576  # ~1MB chunks (smaller = less RAM buffered)
+  max_chunk_age: 1h           # never hold a chunk in memory > 1h
+  chunk_encoding: snappy      # cheap CPU, good ratio
+  wal:
+    enabled: true
+    dir: /loki/wal
+
+# Single-process query path; small caches sized for the Pi.
+querier:
+  max_concurrent: 4
+
+query_range:
+  align_queries_with_step: true
+  cache_results: true
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 64
+
+# No usage reporting phone-home.
+analytics:
+  reporting_enabled: false

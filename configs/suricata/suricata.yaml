@@ -1,0 +1,152 @@
+%YAML 1.1
+---
+# ============================================================================
+# Suricata config for homelab-siem (Raspberry Pi 5, out-of-band IDS mode)
+#
+# This file is a TEMPLATE. install/02-install-suricata.sh renders it into
+# /etc/suricata/suricata.yaml by sed-substituting ONLY these three
+# placeholders from your .env (sed, not envsubst, so Suricata's own $VAR
+# references like $HOME_NET / $HTTP_PORTS below are left intact):
+#     __HOME_NET__            e.g. 192.168.1.0/24
+#     __SURICATA_INTERFACE__  the port-mirror destination NIC, e.g. eth0
+#     __LOG_MOUNT__           the SIEM data dir, e.g. /var/lib/siem
+#
+# Design choices for this build:
+#   - IDS (read-only) mode. We sniff a port-mirror copy; we never forward or
+#     drop packets, so there is NO inline/IPS config and NO copy-mode.
+#   - eve.json emits ONLY `alert` and `dns` (+ low-volume health). This is the
+#     "DNS + alerts only, ~45GB/90d" budget. To add `flow` later, see the
+#     commented block in the eve-log section below.
+#   - Tuned to leave CPU/RAM for the Docker stack (Loki/Grafana/Promtail).
+#
+# Targets Suricata 7.x (ships in current Raspberry Pi OS / Debian). Omitted
+# sections (app-layer, detect, etc.) fall back to Suricata's built-in defaults.
+# ============================================================================
+
+vars:
+  address-groups:
+    HOME_NET: "[__HOME_NET__]"
+    EXTERNAL_NET: "!$HOME_NET"
+
+    # The rest are standard Suricata defaults, kept explicit so bundled
+    # rulesets that reference them resolve cleanly.
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    DC_SERVERS: "$HOME_NET"
+
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    GENEVE_PORTS: 6081
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+
+# All Suricata logs (eve.json, stats.log, suricata.log) land in the SIEM data
+# dir on the SD card. sed fills __LOG_MOUNT__.
+default-log-dir: __LOG_MOUNT__/suricata/
+
+# Global stats counters. Written to stats.log (local debugging only); kept OUT
+# of eve.json to protect the alerts+DNS storage budget.
+stats:
+  enabled: yes
+  interval: 30
+
+outputs:
+  # ---- The one output that matters: eve.json ----------------------------
+  # Promtail tails this file. Keep the event-type list lean.
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      # Pretty-printing wastes disk and breaks one-line-per-event tailing.
+      pcap-file: false
+      community-id: true          # stable flow id, handy for correlation
+      community-id-seed: 0
+      types:
+        - alert:
+            payload: no           # don't store packet payloads (size + privacy)
+            payload-printable: no
+            packet: no
+            metadata: yes         # rule metadata (severity, category)
+            http: yes             # include HTTP context inside an alert
+            tls: yes              # include TLS SNI inside an alert
+            dns: yes              # include DNS context inside an alert
+        - dns:
+            # v2 logs queries and answers in one record per transaction.
+            version: 2
+            # We only need the lookups + their answers; that's the default.
+            # (Leaving `requests`/`responses` at default = both logged.)
+        # ---- To enable true outbound-IP visibility later, UNCOMMENT: ----
+        # - flow
+        # Then shorten flow retention in loki-config.yaml so it doesn't eat
+        # the 90-day alerts+DNS budget. See that file's comments.
+
+  # ---- Local-only human-readable logs (NOT shipped to Loki) -------------
+  - stats:
+      enabled: yes
+      filename: stats.log
+      totals: yes
+      threads: no
+
+# Suricata's own application log (startup, rule load, errors). Local file only.
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: no
+    - file:
+        enabled: yes
+        level: info
+        filename: __LOG_MOUNT__/suricata/suricata.log
+
+# ============================================================================
+# Capture: AF_PACKET on the port-mirror interface, read-only.
+# ============================================================================
+af-packet:
+  - interface: __SURICATA_INTERFACE__
+    # Bound thread count so Suricata leaves cores for the Docker stack.
+    # The Pi 5 has 4 cores; 2 for capture is plenty for a home LAN.
+    threads: 2
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+    tpacket-v3: yes
+    # Mirrored traffic frequently has "bad" checksums because the sending NIC
+    # offloaded them. Don't validate, or we'd wrongly drop/ignore packets.
+    checksum-checks: no
+    ring-size: 2048
+
+# Rules are managed by suricata-update (installed in 02-install-suricata.sh),
+# which writes the merged ruleset here.
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - suricata.rules
+
+# Classification + reference metadata shipped by the Debian package.
+classification-file: /etc/suricata/classification.config
+reference-config-file: /etc/suricata/reference.config
+
+# Conservative engine profile for an 8GB Pi shared with Docker.
+detect:
+  profile: medium
+
+# Reassembly / flow memory caps kept modest for the Pi.
+flow:
+  memcap: 128mb
+  hash-size: 65536
+  prealloc: 10000
+
+stream:
+  memcap: 256mb
+  reassembly:
+    memcap: 256mb

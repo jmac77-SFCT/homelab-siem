@@ -1,0 +1,103 @@
+# ============================================================================
+# homelab-siem Docker stack: Loki + Promtail + Grafana
+#
+# Suricata is NOT here — it runs natively on the Pi (see 02-install-suricata.sh)
+# and writes eve.json to ${LOG_MOUNT}/suricata, which Promtail reads read-only.
+#
+# How this is launched (see 04-deploy-stack.sh):
+#   docker compose --env-file ../.env -f docker-compose.yml up -d
+# Run with --env-file so ${LOG_MOUNT} / ${GRAFANA_ADMIN_PASSWORD} substitute
+# from the repo-root .env. Relative paths below (../configs) resolve against
+# this file's directory (docker/).
+#
+# Network exposure (your spec):
+#   - Loki      -> 127.0.0.1 only   (LAN/Tailscale cannot reach it)
+#   - Promtail  -> not published at all (it only pushes OUT to Loki)
+#   - Grafana   -> 127.0.0.1 here; the tailscale0 binding is added by
+#                  05-configure-tailscale.sh via a gitignored
+#                  docker-compose.override.yml (the tailscale IP isn't known
+#                  until Tailscale is up, which happens after this deploys).
+# ============================================================================
+
+services:
+  loki:
+    image: grafana/loki:3.4.2
+    container_name: siem-loki
+    restart: unless-stopped
+    # Official Loki image runs as uid 10001; 04-deploy-stack.sh chowns the
+    # data dir to match.
+    user: "10001:10001"
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ../configs/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - ${LOG_MOUNT}/loki:/loki
+    ports:
+      # Loopback only. Grafana reaches Loki over the internal Docker network,
+      # so this published port is just for local debugging / curl.
+      - "127.0.0.1:3100:3100"
+    networks:
+      - siem
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 -O- http://127.0.0.1:3100/ready | grep -q ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging: &loki-logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    container_name: siem-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - ../configs/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      # Suricata's logs, READ-ONLY. Promtail can never write here.
+      - ${LOG_MOUNT}/suricata:/var/log/suricata:ro
+      # Persists the tail position so restarts don't re-ship everything.
+      - promtail-positions:/var/lib/promtail
+    # No `ports:` block on purpose — Promtail needs no inbound access.
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - siem
+    logging: *loki-logging
+
+  grafana:
+    image: grafana/grafana-oss:11.5.2
+    container_name: siem-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # Datasource + dashboards are provisioned from files (read-only in UI).
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - ../configs/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../dashboards:/var/lib/grafana/dashboards:ro
+      - ${LOG_MOUNT}/grafana:/var/lib/grafana
+    ports:
+      # Loopback now; 05-configure-tailscale.sh adds the tailscale0 IP binding
+      # via docker-compose.override.yml.
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - siem
+    logging: *loki-logging
+
+networks:
+  siem:
+    driver: bridge
+
+volumes:
+  promtail-positions:
