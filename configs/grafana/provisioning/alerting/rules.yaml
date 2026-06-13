@@ -28,7 +28,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: 'Suricata raised {{ $values.B.Value }} IDS alert(s) in the last 5 minutes'
+          summary: '{{ $values.B.Value }} medium/high-severity Suricata alert(s) in the last 5 minutes'
         data:
           - refId: A
             relativeTimeRange:
@@ -39,7 +39,10 @@ groups:
               datasource:
                 type: loki
                 uid: loki
-              expr: 'sum(count_over_time({job="suricata", event_type="alert"}[5m]))'
+              # Only medium/high-severity alerts (alert.severity 1=high, 2=medium,
+              # 3=low/info). ET Open fires thousands of sev-3 info alerts/hour on
+              # normal traffic; filtering to <=2 keeps Telegram meaningful.
+              expr: 'sum(count_over_time({job="suricata", event_type="alert"} | json | alert_severity <= 2 [5m]))'
               queryType: instant
               instant: true
               range: false
