@@ -24,14 +24,16 @@ contactPoints:
         settings:
           bottoken: ${TELEGRAM_BOT_TOKEN}
           chatid: "${TELEGRAM_CHAT_ID}"
-          # Instructive plain-text message listing each signature + source device.
+          # Each item: signature + device + a one-line ELI5 derived from the ET
+          # rule category (match "..."), so alerts are self-explanatory and you
+          # don't have to look each one up. Order matters: specific before INFO.
           message: |
-            🛡️ Suricata IDS — {{ len .Alerts.Firing }} medium/high-severity signature(s) flagged (last hour):
-            {{ range .Alerts.Firing }}
-            • {{ index .Labels "alert_signature" }}
-              device: {{ index .Labels "device" }}
+            🛡️ Suricata IDS — {{ len .Alerts.Firing }} medium/high-severity signature(s), last hour:
+            {{ range .Alerts.Firing }}{{ $s := index .Labels "alert_signature" }}
+            • {{ $s }}  [{{ index .Labels "device" }}]
+              ↳ {{ if match "ET MALWARE" $s }}Known-malware traffic pattern — investigate this device.{{ else if match "ET TROJAN" $s }}Known-trojan pattern — investigate this device.{{ else if match "ET EXPLOIT|ATTACK_RESPONSE" $s }}Possible exploit / attack response — worth a real look.{{ else if match "ET WEB_SERVER|ET WEB_SPECIFIC" $s }}Web-attack pattern (e.g. injection) aimed at a server.{{ else if match "ET SCAN" $s }}Port/host scanning activity.{{ else if match "ET DROP|ET CINS|ET COMPROMISED|ET TOR" $s }}Involves a known-bad IP (blocklist) — usually just inbound internet scanning.{{ else if match "ET DOS" $s }}Denial-of-service / amplification pattern — often benign UPnP/SSDP at home.{{ else if match "ET DNS" $s }}A DNS lookup matched a rule (e.g. unusual TLD) — usually benign.{{ else if match "ET USER_AGENTS" $s }}An app's identifying string matched a watchlist — usually benign software.{{ else if match "ET POLICY" $s }}Acceptable-use / policy pattern (old protocol, cleartext, etc.).{{ else if match "ET INFO" $s }}Informational — normal-but-notable, almost always benign.{{ else }}Signature match — open the dashboard for context.{{ end }}
             {{- end }}
 
-            These are Emerging Threats rule matches — leads worth reviewing, NOT proof of compromise. Dig in: Grafana → "Devices Calling Out" dashboard.
+            Leads to review, NOT proof of compromise. Details: Grafana → "Devices Calling Out".
         # No "resolved"/NoData messages — for a SIEM you care that something fired.
         disableResolveMessage: true
