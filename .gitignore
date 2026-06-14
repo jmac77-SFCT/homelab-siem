@@ -22,6 +22,9 @@ configs/grafana/provisioning/alerting/contactpoints.yaml
 # Device map pulled from UniFi (contains your personal device names)
 configs/devices.json
 
+# Promtail config rendered from .template with device names baked in
+configs/promtail/promtail-config.yaml
+
 # Logs / runtime artifacts (should never be in repo anyway)
 *.log
 logs/

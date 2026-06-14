@@ -52,6 +52,15 @@ scrape_configs:
             signature: alert.signature
             rrname: dns.rrname
 
+      # 1b) Map src_ip -> a human-readable device name from your UniFi labels.
+      #     RENDERED by scripts/render-promtail-devices.sh: __DEVICE_TEMPLATE__
+      #     is replaced with a Go template built from configs/devices.json, e.g.
+      #     {{ if eq .src_ip "192.168.2.106" }}Jackson iPhone{{ ... }}{{ else }}{{ .src_ip }}{{ end }}
+      #     Unknown / external IPs fall through to the raw IP.
+      - template:
+          source: device
+          template: '__DEVICE_TEMPLATE__'
+
       # 2) Use Suricata's own event time as the log timestamp (not ingest time).
       #    eve.json default format looks like 2026-06-13T09:15:00.123456+0000,
       #    which this explicit Go layout parses (note -0700, not -07:00).
@@ -65,6 +74,7 @@ scrape_configs:
       - labels:
           event_type:
           src_ip:
+          device:
 
       # 4) High-cardinality, still-useful fields go to structured metadata:
       #    filterable in Grafana without exploding Loki's index.

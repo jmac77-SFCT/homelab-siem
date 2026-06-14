@@ -59,6 +59,12 @@ if [[ -f "$CP_TMPL" ]]; then
   fi
 fi
 
+# Render Promtail config with device-name enrichment from configs/devices.json
+# (falls back to raw src_ip if the device map isn't present yet).
+if [[ -x "$REPO_DIR/scripts/render-promtail-devices.sh" ]]; then
+  "$REPO_DIR/scripts/render-promtail-devices.sh" || warn "Promtail device render failed; continuing."
+fi
+
 # ---------------------------------------------------------------------------
 # 2. Decide whether we need sudo for docker (group may not be active yet)
 # ---------------------------------------------------------------------------
