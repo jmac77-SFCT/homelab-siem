@@ -2,19 +2,16 @@
 # ============================================================================
 # sync-unifi-devices.sh  —  homelab-siem
 #
-# Pulls the client list from the UniFi controller and writes an IP -> name map
-# to configs/devices.json (gitignored). That map is what turns raw src_ip
-# values into your human-readable UniFi labels in dashboards and Telegram
-# alerts.
+# Pulls the client list from the UniFi Network *Integration API* (API-key auth)
+# and writes an IP -> name map to configs/devices.json (gitignored). That map
+# turns raw src_ip values into your human-readable UniFi labels in dashboards
+# and Telegram alerts.
 #
 # STAGE 1 of device-name enrichment: this only produces devices.json.
-# (Stage 2 renders it into Promtail + reloads — added separately.)
 #
-# Targets UniFi OS gateways/consoles (UDM / Cloud Gateway / Gateway Lite),
-# where the Network API lives behind /proxy/network. Requires a LOCAL UniFi
-# admin (read-only is fine) in .env: UNIFI_HOST/USERNAME/PASSWORD/SITE.
-#
-# Safe to re-run; intended to be run on a schedule (cron) later.
+# Requires (in .env): UNIFI_HOST, UNIFI_API_KEY, UNIFI_SITE (default "default").
+# Create the key in UniFi: Settings -> Control Plane -> Integrations -> API Key.
+# Needs Network 9.x+ (the Integration API). Safe to re-run / schedule via cron.
 # ============================================================================
 set -euo pipefail
 
@@ -32,57 +29,67 @@ OUT="$REPO_DIR/configs/devices.json"
 [[ -f "$ENV_FILE" ]] || die "No .env at $ENV_FILE."
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
-
 : "${UNIFI_HOST:?UNIFI_HOST is empty in .env}"
-: "${UNIFI_USERNAME:?UNIFI_USERNAME is empty in .env}"
-: "${UNIFI_PASSWORD:?UNIFI_PASSWORD is empty in .env}"
+: "${UNIFI_API_KEY:?UNIFI_API_KEY is empty in .env (Settings->Control Plane->Integrations)}"
 UNIFI_SITE="${UNIFI_SITE:-default}"
 command -v jq >/dev/null || die "jq not installed (apt-get install -y jq)."
 
-COOKIES="$(mktemp)"
-trap 'rm -f "$COOKIES"' EXIT
+BASE="https://$UNIFI_HOST/proxy/network/integration/v1"
+api() {  # api <path>  -> body on stdout; verifies HTTP 200
+  local path="$1" tmp code
+  tmp="$(mktemp)"
+  code="$(curl -sk -o "$tmp" -w '%{http_code}' \
+    -H "X-API-KEY: $UNIFI_API_KEY" -H 'Accept: application/json' \
+    "$BASE$path" || true)"
+  if [[ "$code" != "200" ]]; then
+    warn "GET $path -> HTTP $code"
+    warn "Body: $(head -c 200 "$tmp")"
+    rm -f "$tmp"
+    [[ "$code" == "401" || "$code" == "403" ]] && die "Auth failed — check UNIFI_API_KEY."
+    [[ "$code" == "404" ]] && die "Integration API not found — Network version may be <9.0, or wrong UNIFI_HOST."
+    die "UniFi API request failed."
+  fi
+  cat "$tmp"; rm -f "$tmp"
+}
 
-# ---- 1. Log in (UniFi OS) --------------------------------------------------
-info "Logging in to UniFi at https://$UNIFI_HOST ..."
-login_code="$(curl -sk -o /dev/null -w '%{http_code}' \
-  -c "$COOKIES" \
-  -X POST "https://$UNIFI_HOST/api/auth/login" \
-  -H 'Content-Type: application/json' \
-  --data "$(jq -nc --arg u "$UNIFI_USERNAME" --arg p "$UNIFI_PASSWORD" '{username:$u,password:$p}')" \
-  || true)"
+# ---- 1. Resolve the site id (Integration API uses a UUID, not "default") ---
+info "Connecting to UniFi Integration API at $BASE ..."
+sites="$(api /sites)"
+site_id="$(jq -r --arg ref "$UNIFI_SITE" \
+  'first(.data[] | select((.internalReference // .name | ascii_downcase) == ($ref|ascii_downcase)) | .id) // ""' \
+  <<<"$sites")"
+[[ -n "$site_id" ]] || site_id="$(jq -r '.data[0].id // ""' <<<"$sites")"
+[[ -n "$site_id" ]] || die "Could not resolve a site id. Raw: $(head -c 200 <<<"$sites")"
+ok "Site id: $site_id"
 
-if [[ "$login_code" != "200" ]]; then
-  warn "UniFi OS login returned HTTP $login_code."
-  warn "If this is an OLD self-hosted controller (port 8443, not UniFi OS), the"
-  warn "API path differs (/api/login + :8443). Tell me and I'll adapt the script."
-  die  "Login failed — check UNIFI_HOST/USERNAME/PASSWORD in .env."
-fi
-ok "Authenticated."
-
-# ---- 2. Fetch clients ------------------------------------------------------
-info "Fetching client list (site: $UNIFI_SITE)..."
-clients_json="$(curl -sk -b "$COOKIES" \
-  "https://$UNIFI_HOST/proxy/network/api/s/$UNIFI_SITE/stat/sta")"
-
-count="$(printf '%s' "$clients_json" | jq '.data | length' 2>/dev/null || echo 0)"
-[[ "$count" -gt 0 ]] || die "No clients returned (site '$UNIFI_SITE' correct? Try 'default'). Raw: ${clients_json:0:200}"
-info "Controller returned $count clients."
+# ---- 2. Fetch clients (paginated) -----------------------------------------
+info "Fetching clients..."
+all='[]'; offset=0; limit=200
+while :; do
+  page="$(api "/sites/$site_id/clients?offset=$offset&limit=$limit")"
+  all="$(jq -c --argjson a "$all" '$a + (.data // [])' <<<"$page")"
+  total="$(jq -r '.totalCount // (.data|length) // 0' <<<"$page")"
+  offset=$((offset + limit))
+  [[ "$offset" -ge "$total" || "$offset" -gt 5000 ]] && break
+done
+got="$(jq 'length' <<<"$all")"
+info "Retrieved $got client records."
 
 # ---- 3. Build the IP -> name map ------------------------------------------
-# Prefer the user-set alias (.name), then hostname, then MAC. Only clients
-# that currently have an IP.
+# Field names vary slightly by version, so try the common ones.
 mkdir -p "$(dirname "$OUT")"
-printf '%s' "$clients_json" | jq '
-  [ .data[]
-    | select(.ip != null and .ip != "")
-    | { key: .ip, value: (.name // .hostname // .mac) }
+jq '
+  [ .[]
+    | (.ipAddress // .ip) as $ip
+    | select($ip != null and $ip != "")
+    | { key: $ip, value: (.name // .hostname // .displayName // .macAddress // .mac) }
   ] | from_entries
-' > "$OUT"
+' <<<"$all" > "$OUT"
 
 mapped="$(jq 'length' "$OUT")"
+[[ "$mapped" -gt 0 ]] || warn "0 mappings — clients may lack IPs, or field names differ (show me a sample)."
 ok "Wrote $mapped IP->name mappings to $OUT"
-info "Sample:"
-jq -r 'to_entries | .[:8][] | "    \(.key)  ->  \(.value)"' "$OUT"
+jq -r 'to_entries | .[:8][] | "    \(.key)  ->  \(.value)"' "$OUT" 2>/dev/null || true
 
 echo
 ok "Stage 1 done. Next: render this into Promtail enrichment (stage 2)."
