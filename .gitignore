@@ -19,6 +19,9 @@ configs/**/local-*
 # Rendered-at-deploy secrets (contain real token; rendered from .template)
 configs/grafana/provisioning/alerting/contactpoints.yaml
 
+# Device map pulled from UniFi (contains your personal device names)
+configs/devices.json
+
 # Logs / runtime artifacts (should never be in repo anyway)
 *.log
 logs/
