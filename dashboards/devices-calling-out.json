@@ -29,7 +29,7 @@
         "description": "Filter to one source IP (device), or All.",
         "type": "query",
         "datasource": { "type": "loki", "uid": "loki" },
-        "query": "label_values({job=\"suricata\"}, src_ip)",
+        "query": "label_values({job=\"suricata\"}, device)",
         "refresh": 2,
         "sort": 1,
         "includeAll": true,
@@ -82,7 +82,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({job=\"suricata\", event_type=\"alert\", src_ip=~\"$device\"} [$__auto]))",
+          "expr": "sum(count_over_time({job=\"suricata\", event_type=\"alert\", device=~\"$device\"} [$__auto]))",
           "legendFormat": "alerts",
           "queryType": "range"
         }
@@ -121,7 +121,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({job=\"suricata\", event_type=\"alert\", src_ip=~\"$device\"} [$__range]))",
+          "expr": "sum(count_over_time({job=\"suricata\", event_type=\"alert\", device=~\"$device\"} [$__range]))",
           "instant": true,
           "queryType": "instant"
         }
@@ -146,7 +146,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{job=\"suricata\", event_type=\"alert\", src_ip=~\"$device\"} | json | line_format \"{{.src_ip}} -> {{.dest_ip}} :: {{.alert_signature}}\"",
+          "expr": "{job=\"suricata\", event_type=\"alert\", device=~\"$device\"} | json | line_format \"{{.device}} ({{.src_ip}}) -> {{.dest_ip}} :: {{.alert_signature}}\"",
           "queryType": "range",
           "maxLines": 200
         }
@@ -190,7 +190,7 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "topk(50, sum by (src_ip, rrname) (count_over_time({job=\"suricata\", event_type=\"dns\", src_ip=~\"$device\"} | json | rrname!=\"\" [$__range])))",
+          "expr": "topk(50, sum by (device, rrname) (count_over_time({job=\"suricata\", event_type=\"dns\", device=~\"$device\"} | json | rrname!=\"\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
@@ -205,8 +205,8 @@
           "id": "organize",
           "options": {
             "excludeByName": { "Time": true },
-            "indexByName": { "src_ip": 0, "rrname": 1, "Value": 2 },
-            "renameByName": { "src_ip": "device", "rrname": "domain" }
+            "indexByName": { "device": 0, "rrname": 1, "Value": 2 },
+            "renameByName": { "device": "device", "rrname": "domain" }
           }
         }
       ]
@@ -240,8 +240,8 @@
         {
           "refId": "A",
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by (src_ip) (count_over_time({job=\"suricata\", event_type=\"dns\", src_ip=~\"$device\"} [$__auto]))",
-          "legendFormat": "{{src_ip}}",
+          "expr": "sum by (device) (count_over_time({job=\"suricata\", event_type=\"dns\", device=~\"$device\"} [$__auto]))",
+          "legendFormat": "{{device}}",
           "queryType": "range"
         }
       ]

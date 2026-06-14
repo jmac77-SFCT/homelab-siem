@@ -29,7 +29,7 @@ contactPoints:
             🛡️ Suricata IDS — {{ len .Alerts.Firing }} medium/high-severity signature(s) flagged (last hour):
             {{ range .Alerts.Firing }}
             • {{ index .Labels "alert_signature" }}
-              source: {{ index .Labels "src_ip" }}
+              device: {{ index .Labels "device" }}
             {{- end }}
 
             These are Emerging Threats rule matches — leads worth reviewing, NOT proof of compromise. Dig in: Grafana → "Devices Calling Out" dashboard.

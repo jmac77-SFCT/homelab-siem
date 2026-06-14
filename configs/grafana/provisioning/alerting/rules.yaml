@@ -28,7 +28,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: 'Signature "{{ $labels.alert_signature }}" matched {{ $values.B.Value }}x involving {{ $labels.src_ip }} in the last hour'
+          summary: 'Signature "{{ $labels.alert_signature }}" matched {{ $values.B.Value }}x involving {{ $labels.device }} in the last hour'
         data:
           - refId: A
             relativeTimeRange:
@@ -44,7 +44,7 @@ groups:
               # (alert.severity 1=high, 2=medium, 3=low/info) — ET Open fires
               # thousands of sev-3 info alerts/hour on normal traffic. 1h window
               # so brief gaps don't make it flap Firing<->NoData.
-              expr: 'sum by (alert_signature, src_ip) (count_over_time({job="suricata", event_type="alert"} | json | alert_severity <= 2 [1h]))'
+              expr: 'sum by (alert_signature, device) (count_over_time({job="suricata", event_type="alert"} | json | alert_severity <= 2 [1h]))'
               queryType: instant
               instant: true
               range: false
