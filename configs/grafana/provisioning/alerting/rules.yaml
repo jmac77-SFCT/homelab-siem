@@ -80,3 +80,69 @@ groups:
                     type: gt
                     params: [0]
               refId: C
+
+      # ----------------------------------------------------------------------
+      # Flagged-domain watch: alert when any device looks up an adult-content
+      # domain (DNS). Names the device + domain. EDIT THE WATCHLIST in the
+      # regex below — add/remove brand names in the (a|b|c) group; matching is
+      # case-insensitive and catches subdomains (e.g. www.onlyfans.com).
+      # NOTE: this ALERTS only. To BLOCK by category, use DNS filtering
+      # (UniFi content filtering / NextDNS / Pi-hole with an adult blocklist).
+      # ----------------------------------------------------------------------
+      - uid: flagged_domain_lookup
+        title: Flagged domain lookup
+        condition: C
+        for: 0m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+          category: flagged-domain
+        annotations:
+          summary: '{{ $labels.device }} looked up flagged domain {{ $labels.rrname }}'
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              datasource:
+                type: loki
+                uid: loki
+              expr: 'sum by (device, rrname) (count_over_time({job="suricata", event_type="dns"} | json | rrname=~"(?i)(^|\\.)(onlyfans|fansly|pornhub|xvideos|xnxx|xhamster|redtube|youporn|chaturbate|stripchat|spankbang|brazzers|adultfriendfinder|myfreecams)\\." [10m]))'
+              queryType: instant
+              instant: true
+              range: false
+              refId: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
