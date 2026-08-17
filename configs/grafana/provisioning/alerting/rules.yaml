@@ -24,7 +24,10 @@ groups:
         for: 0m
         # No data = no alerts seen = nothing wrong, so don't page.
         noDataState: OK
-        execErrState: OK
+        # Eval error = Grafana can't reach Loki = the SIEM is BLIND. Page loudly
+        # instead of silently reporting "all clear" (bit us on 2026-08-16 when
+        # the Grafana container came up with no Docker network after a reboot).
+        execErrState: Error
         labels:
           severity: warning
         annotations:
@@ -94,7 +97,8 @@ groups:
         condition: C
         for: 0m
         noDataState: OK
-        execErrState: OK
+        # Page on eval errors — see note on the rule above.
+        execErrState: Error
         labels:
           severity: warning
           category: flagged-domain
