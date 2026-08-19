@@ -1,0 +1,23 @@
+# Ad/tracker lookups — exercises the Firebog custom block lists (FQDNs + domains).
+# Verified against network policy via TESTDDR resolvers 2026-08-19.
+#
+# BLOCKED (74.2.55.x) by Firebog lists:
+googletagmanager.com
+ad.doubleclick.net
+pagead2.googlesyndication.com
+adnxs.com
+secure.adnxs.com
+pubmatic.com
+amazon-adsystem.com
+aax.amazon-adsystem.com
+01counter.com
+0019x.com
+00px.net
+000491b06a.com
+# resolving tracker noise (realistic allow-side ad traffic):
+google-analytics.com
+www.google-analytics.com
+criteo.com
+taboola.com
+outbrain.com
+scorecardresearch.com

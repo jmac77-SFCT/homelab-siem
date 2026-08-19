@@ -22,7 +22,9 @@ DDR_CLIENT_ID="${DDR_CLIENT_ID:-5fe714d3-6cb6-4f24-8002-723e09cc387b}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BENIGN_FILE="${BENIGN_FILE:-$SCRIPT_DIR/domains-benign.txt}"
 SUSPECT_FILE="${SUSPECT_FILE:-$SCRIPT_DIR/domains-suspect.txt}"
+ADTRACK_FILE="${ADTRACK_FILE:-$SCRIPT_DIR/domains-adtrack.txt}"
 SUSPECT_PCT="${SUSPECT_PCT:-15}"
+ADTRACK_PCT="${ADTRACK_PCT:-20}"
 LOG_FILE="${LOG_FILE:-$SCRIPT_DIR/ddr-demo.log.csv}"
 
 MODE="dig"
@@ -62,6 +64,9 @@ diurnal_multiplier() {
 mapfile -t BENIGN  < <(grep -v '^\s*\(#\|$\)' "$BENIGN_FILE")
 mapfile -t SUSPECT < <(grep -v '^\s*\(#\|$\)' "$SUSPECT_FILE")
 [[ ${#BENIGN[@]} -gt 0 && ${#SUSPECT[@]} -gt 0 ]] || { echo "empty domain lists" >&2; exit 1; }
+ADTRACK=()
+[[ -f "$ADTRACK_FILE" ]] && mapfile -t ADTRACK < <(grep -v '^\s*\(#\|$\)' "$ADTRACK_FILE")
+[[ ${#ADTRACK[@]} -gt 0 ]] || ADTRACK_PCT=0
 
 [[ -f "$LOG_FILE" ]] || echo "timestamp,mode,domain,kind,verdict,categories,answer" >> "$LOG_FILE"
 
@@ -105,8 +110,11 @@ while :; do
   # A "browsing session": burst of 3-8 queries, then a longer pause.
   BURST=$(( RANDOM % 6 + 3 ))
   for ((i=0; i<BURST; i++)); do
-    if (( RANDOM % 100 < SUSPECT_PCT )); then
+    R=$(( RANDOM % 100 ))
+    if (( R < SUSPECT_PCT )); then
       DOMAIN="${SUSPECT[RANDOM % ${#SUSPECT[@]}]}"; KIND="suspect"
+    elif (( R < SUSPECT_PCT + ADTRACK_PCT )); then
+      DOMAIN="${ADTRACK[RANDOM % ${#ADTRACK[@]}]}"; KIND="adtrack"
     else
       DOMAIN="${BENIGN[RANDOM % ${#BENIGN[@]}]}"; KIND="benign"
     fi
