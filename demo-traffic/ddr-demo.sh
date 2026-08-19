@@ -26,7 +26,13 @@ ADTRACK_FILE="${ADTRACK_FILE:-$SCRIPT_DIR/domains-adtrack.txt}"
 EXFIL_FILE="${EXFIL_FILE:-$SCRIPT_DIR/domains-exfil.txt}"
 SUSPECT_PCT="${SUSPECT_PCT:-15}"
 ADTRACK_PCT="${ADTRACK_PCT:-20}"
-EXFIL_PCT="${EXFIL_PCT:-8}"
+# EXFIL_PCT=0: disabled. Synthetic tunneling names are NXDOMAIN (the base
+# domain isn't registered), so the "Exfiltration and Tunneling" rule never
+# fires — the decision engine returns NXD, not a block. Triggering it for real
+# needs a registered domain on a target TLD whose nameserver answers the
+# encoded labels (i.e. an attacker-controlled tunnel domain). Set EXFIL_DOMAIN
+# to such a domain and raise EXFIL_PCT to re-enable.
+EXFIL_PCT="${EXFIL_PCT:-0}"
 LOG_FILE="${LOG_FILE:-$SCRIPT_DIR/ddr-demo.log.csv}"
 
 MODE="dig"
