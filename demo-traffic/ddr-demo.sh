@@ -23,8 +23,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BENIGN_FILE="${BENIGN_FILE:-$SCRIPT_DIR/domains-benign.txt}"
 SUSPECT_FILE="${SUSPECT_FILE:-$SCRIPT_DIR/domains-suspect.txt}"
 ADTRACK_FILE="${ADTRACK_FILE:-$SCRIPT_DIR/domains-adtrack.txt}"
+EXFIL_FILE="${EXFIL_FILE:-$SCRIPT_DIR/domains-exfil.txt}"
 SUSPECT_PCT="${SUSPECT_PCT:-15}"
 ADTRACK_PCT="${ADTRACK_PCT:-20}"
+EXFIL_PCT="${EXFIL_PCT:-8}"
 LOG_FILE="${LOG_FILE:-$SCRIPT_DIR/ddr-demo.log.csv}"
 
 MODE="dig"
@@ -67,6 +69,20 @@ mapfile -t SUSPECT < <(grep -v '^\s*\(#\|$\)' "$SUSPECT_FILE")
 ADTRACK=()
 [[ -f "$ADTRACK_FILE" ]] && mapfile -t ADTRACK < <(grep -v '^\s*\(#\|$\)' "$ADTRACK_FILE")
 [[ ${#ADTRACK[@]} -gt 0 ]] || ADTRACK_PCT=0
+EXFIL_TLDS=()
+[[ -f "$EXFIL_FILE" ]] && mapfile -t EXFIL_TLDS < <(grep -v '^\s*\(#\|$\)' "$EXFIL_FILE")
+[[ ${#EXFIL_TLDS[@]} -gt 0 ]] || EXFIL_PCT=0
+
+# Build a tunneling-style FQDN: high-entropy label under a target TLD, and
+# pick TXT or HINFO. Sets globals EXFIL_FQDN + EXFIL_QTYPE (must NOT run in a
+# subshell, or set -u kills the caller). dig only — DoH path stays A-only.
+EXFIL_FQDN=""; EXFIL_QTYPE="A"
+gen_exfil() {
+  local chars="abcdefghijklmnopqrstuvwxyz0123456789" lbl="" k
+  for ((k=0; k<18; k++)); do lbl+="${chars:RANDOM%36:1}"; done
+  if (( RANDOM % 2 == 0 )); then EXFIL_QTYPE="TXT"; else EXFIL_QTYPE="HINFO"; fi
+  EXFIL_FQDN="${lbl}.x.${EXFIL_TLDS[RANDOM % ${#EXFIL_TLDS[@]}]}"
+}
 
 [[ -f "$LOG_FILE" ]] || echo "timestamp,mode,domain,kind,verdict,categories,answer" >> "$LOG_FILE"
 
@@ -87,18 +103,29 @@ query_doh() {  # $1=domain -> sets VERDICT, CATEGORIES, ANSWER
   ANSWER="$(grep -o '"data":"[^"]*"' <<<"$body" | head -1 | cut -d'"' -f4)"
 }
 
-query_dig() {  # $1=domain -> sets VERDICT, CATEGORIES, ANSWER
+query_dig() {  # $1=domain, $2=record type (default A) -> VERDICT, CATEGORIES, ANSWER
   # DIG_SERVERS: space-separated resolver IPs; one is picked per query.
   # Pin these to the UltraDDR resolvers so nothing falls back to LAN DNS.
-  local at=()
+  local rtype="${2:-A}" at=()
   if [[ -n "${DIG_SERVERS:-}" ]]; then
     local srv=($DIG_SERVERS)
     at=("@${srv[RANDOM % ${#srv[@]}]}")
   fi
-  ANSWER="$(dig +short +time=5 +tries=1 "${at[@]}" "$1" A 2>/dev/null | head -1)"
+  # grep -v '^;;' drops dig's "communications error/timed out" diagnostic lines
+  # so a transient timeout logs as empty rather than polluting the answer field.
+  ANSWER="$(dig +short +time=5 +tries=1 "${at[@]}" "$1" "$rtype" 2>/dev/null | grep -v '^;;' | head -1)"
   VERDICT=""; CATEGORIES=""
-  # UltraDDR block-page IPs come from 74.2.55.0/24 (observed .86, .57)
-  [[ "$ANSWER" == 74.2.55.* ]] && VERDICT="block"
+  if [[ "$rtype" == "A" ]]; then
+    # Content/threat/adblock: UltraDDR serves a block page from 74.2.55.0/24.
+    [[ "$ANSWER" == 74.2.55.* ]] && VERDICT="block"
+  else
+    # Tunneling rule blocks TXT/HINFO as NODATA (NOERROR + empty answer),
+    # distinct from a real NXDOMAIN. Record the query type in categories.
+    local st
+    st="$(dig +time=5 +tries=1 "${at[@]}" "$1" "$rtype" 2>/dev/null | grep -oE 'status: [A-Z]+' | head -1 | awk '{print $2}')"
+    [[ -z "$ANSWER" && "$st" == "NOERROR" ]] && VERDICT="block"
+    CATEGORIES="$rtype"
+  fi
 }
 
 START=$(date +%s)
@@ -110,15 +137,17 @@ while :; do
   # A "browsing session": burst of 3-8 queries, then a longer pause.
   BURST=$(( RANDOM % 6 + 3 ))
   for ((i=0; i<BURST; i++)); do
-    R=$(( RANDOM % 100 ))
+    R=$(( RANDOM % 100 )); RTYPE="A"
     if (( R < SUSPECT_PCT )); then
       DOMAIN="${SUSPECT[RANDOM % ${#SUSPECT[@]}]}"; KIND="suspect"
     elif (( R < SUSPECT_PCT + ADTRACK_PCT )); then
       DOMAIN="${ADTRACK[RANDOM % ${#ADTRACK[@]}]}"; KIND="adtrack"
+    elif (( R < SUSPECT_PCT + ADTRACK_PCT + EXFIL_PCT )); then
+      gen_exfil; DOMAIN="$EXFIL_FQDN"; RTYPE="$EXFIL_QTYPE"; KIND="exfil"
     else
       DOMAIN="${BENIGN[RANDOM % ${#BENIGN[@]}]}"; KIND="benign"
     fi
-    if [[ "$MODE" == "doh" ]]; then query_doh "$DOMAIN"; else query_dig "$DOMAIN"; fi
+    if [[ "$MODE" == "doh" ]]; then query_doh "$DOMAIN"; else query_dig "$DOMAIN" "$RTYPE"; fi
     echo "$(date -Is),$MODE,$DOMAIN,$KIND,${VERDICT:-},${CATEGORIES:-},${ANSWER:-}" >> "$LOG_FILE"
     COUNT=$((COUNT+1))
     [[ -n "${VERDICT:-}" && "${VERDICT:-}" != "None" ]] && \

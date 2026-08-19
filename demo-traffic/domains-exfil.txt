@@ -1,0 +1,12 @@
+# Exfiltration/tunneling TLDs — matches the UltraDDR "Exfiltration and
+# Tunneling" decision rule (TLD in this list AND query type TXT/HINFO -> Block).
+# The generator builds a high-entropy subdomain under one of these TLDs and
+# queries it as TXT or HINFO, so it looks like real DNS tunneling in analytics.
+# Add/remove TLDs to match the rule's full value list (screenshot was truncated).
+# NOTE: .live is intentionally omitted — .live + HINFO forwards upstream and
+# times out instead of matching the rule (verified 2026-08-19). TXT/HINFO to
+# the TLDs below both return NODATA (the rule's block signature).
+degree
+fyi
+rodeo
+cn
