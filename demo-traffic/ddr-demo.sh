@@ -156,9 +156,9 @@ while :; do
   done
   if (( DIURNAL )); then
     M=$(diurnal_multiplier)
-    # Pause base 4-12s ≈ 1M queries per 30 days across the diurnal curve
-    # (~1,850/hr weekday peak). Was 15-44s ≈ 315k/month.
-    PAUSE=$(( (RANDOM % 9 + 4) * 100 / M ))
+    # Pause base 8-24s ≈ 500k queries per 30 days across the diurnal curve
+    # (~925/hr weekday peak). (4-12s ≈ 1M; 15-44s ≈ 315k.)
+    PAUSE=$(( (RANDOM % 17 + 8) * 100 / M ))
     echo "[$(date '+%H:%M:%S')] $COUNT queries sent (rate=${M}%, next burst in ${PAUSE}s)"
   else
     PAUSE=$(( RANDOM % 20 + 5 ))
