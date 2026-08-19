@@ -1,0 +1,27 @@
+# Demo "suspect" traffic — verified against UltraDDR (client ID policy) 2026-08-17.
+# Marked BLOCK = returned verdict=block; others allow but land in
+# demo-worthy categories. Re-verify anytime with ultraddr_bulk (dns-mcp).
+#
+# BLOCK verdict=block categories=miscellaneous
+examplebotnetdomain.com
+# BLOCK verdict=block categories=technology
+phishing.testcategory.com
+# BLOCK — WannaCry kill-switch domain, verdict=block
+iuqerfsodp9ifjaposdfjhgosurijfaewrwergwea.com
+# BLOCK — cryptomining/C2, verdict=block categories=bots / c2, dynamic
+coinhive.com
+# allow, categories=malware & ransomware (blocks if policy adds that category)
+grabify.link
+# allow, categories=pornography (content-filter category demo)
+exampleadultsite.com
+# allow, categories=digital piracy
+thepiratebay.org
+# allow — vendor test domains, category noise
+internetbadguys.com
+examplemalwaredomain.com
+malware.testcategory.com
+# DGA-style noise (uncategorized NXDOMAIN — resolver telemetry volume)
+xk7qwpz3vbn9.com
+qhr8t2mzkx4j.net
+zzq9v7wplm2r.info
+kj3xw8qn5vtz.biz

@@ -1,0 +1,26 @@
+# Benign background noise — popular sites, one per line.
+google.com
+www.youtube.com
+github.com
+stackoverflow.com
+www.wikipedia.org
+news.ycombinator.com
+www.reddit.com
+www.amazon.com
+www.netflix.com
+api.weather.gov
+www.espn.com
+www.nytimes.com
+outlook.office365.com
+login.microsoftonline.com
+slack.com
+zoom.us
+www.dropbox.com
+fonts.googleapis.com
+cdn.jsdelivr.net
+registry.npmjs.org
+pypi.org
+ubuntu.com
+raspberrypi.com
+www.cloudflare.com
+vercara.com

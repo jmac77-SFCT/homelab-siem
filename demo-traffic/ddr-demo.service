@@ -1,0 +1,15 @@
+[Unit]
+Description=UltraDDR demo DNS traffic generator (diurnal ET pattern)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/demo-traffic
+Environment="DIG_SERVERS=204.74.103.5 204.74.122.5"
+ExecStart=/home/pi/demo-traffic/ddr-demo.sh --mode dig --duration 0 --diurnal
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
