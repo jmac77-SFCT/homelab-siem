@@ -24,3 +24,55 @@ ubuntu.com
 raspberrypi.com
 www.cloudflare.com
 vercara.com
+#
+# --- Category diversity for analytics (UltraDDR categories verified 2026-08-19) ---
+# gambling — BLOCKED under network policy (Gambling=Block)
+draftkings.com
+fanduel.com
+bet365.com
+pokerstars.com
+betmgm.com
+bovada.lv
+# social media — BLOCKED under network policy (Social=Block)
+facebook.com
+instagram.com
+tiktok.com
+x.com
+linkedin.com
+pinterest.com
+snapchat.com
+# games
+steampowered.com
+roblox.com
+epicgames.com
+twitch.tv
+# drugs
+leafly.com
+weedmaps.com
+# p2p sharing / digital piracy
+utorrent.com
+1337x.to
+# pornography / sex and nudity
+pornhub.com
+xvideos.com
+onlyfans.com
+# discrimination-hate / adult issues
+stormfront.org
+4chan.org
+# --- mainstream filler categories (finance, health, travel, shopping, news, streaming) ---
+chase.com
+fidelity.com
+webmd.com
+mayoclinic.org
+booking.com
+expedia.com
+walmart.com
+target.com
+ebay.com
+cnn.com
+foxnews.com
+spotify.com
+hulu.com
+zillow.com
+indeed.com
+coursera.org
