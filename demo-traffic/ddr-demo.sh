@@ -92,8 +92,8 @@ query_dig() {  # $1=domain -> sets VERDICT, CATEGORIES, ANSWER
   fi
   ANSWER="$(dig +short +time=5 +tries=1 "${at[@]}" "$1" A 2>/dev/null | head -1)"
   VERDICT=""; CATEGORIES=""
-  # UltraDDR block-page IP observed 2026-08-17
-  [[ "$ANSWER" == "74.2.55.86" ]] && VERDICT="block"
+  # UltraDDR block-page IPs come from 74.2.55.0/24 (observed .86, .57)
+  [[ "$ANSWER" == 74.2.55.* ]] && VERDICT="block"
 }
 
 START=$(date +%s)
