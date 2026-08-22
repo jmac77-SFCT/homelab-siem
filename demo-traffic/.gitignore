@@ -1,0 +1,5 @@
+# Large / regenerable diversity pools (rebuild with build-pools.sh)
+pools/
+# Runtime logs
+*.log.csv
+*.out

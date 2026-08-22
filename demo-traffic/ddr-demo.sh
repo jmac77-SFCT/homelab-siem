@@ -24,6 +24,14 @@ BENIGN_FILE="${BENIGN_FILE:-$SCRIPT_DIR/domains-benign.txt}"
 SUSPECT_FILE="${SUSPECT_FILE:-$SCRIPT_DIR/domains-suspect.txt}"
 ADTRACK_FILE="${ADTRACK_FILE:-$SCRIPT_DIR/domains-adtrack.txt}"
 EXFIL_FILE="${EXFIL_FILE:-$SCRIPT_DIR/domains-exfil.txt}"
+# Large diversity pools (sampled per query): top-sites for benign, filtered
+# UltraDDR-blocked malware feed for threats. Fall back to curated lists if absent.
+TOPSITES_FILE="${TOPSITES_FILE:-$SCRIPT_DIR/pools/top-1m.csv}"
+THREAT_FILE="${THREAT_FILE:-$SCRIPT_DIR/domains-threat.txt}"
+# % of benign/suspect drawn from the small curated category lists (which keep
+# specific category blocks — gambling/social/adult, known sinkholes — visible);
+# the rest is sampled from the large pools for diversity.
+CURATED_MIX="${CURATED_MIX:-25}"
 SUSPECT_PCT="${SUSPECT_PCT:-15}"
 ADTRACK_PCT="${ADTRACK_PCT:-20}"
 # EXFIL_PCT=0: disabled. Synthetic tunneling names are NXDOMAIN (the base
@@ -75,6 +83,15 @@ mapfile -t SUSPECT < <(grep -v '^\s*\(#\|$\)' "$SUSPECT_FILE")
 ADTRACK=()
 [[ -f "$ADTRACK_FILE" ]] && mapfile -t ADTRACK < <(grep -v '^\s*\(#\|$\)' "$ADTRACK_FILE")
 [[ ${#ADTRACK[@]} -gt 0 ]] || ADTRACK_PCT=0
+
+# bash $RANDOM only reaches 32767; combine two for a ~30-bit index into big pools.
+rand30() { echo $(( ( (RANDOM << 15) | RANDOM ) % $1 )); }
+# Large pools loaded once. TOPSITES = domain column of the top-sites CSV.
+TOPSITES=()
+[[ -f "$TOPSITES_FILE" ]] && mapfile -t TOPSITES < <(cut -d, -f2 "$TOPSITES_FILE" | tr -d '\r')
+THREAT=()
+[[ -f "$THREAT_FILE" ]] && mapfile -t THREAT < <(grep -v '^\s*\(#\|$\)' "$THREAT_FILE")
+echo "[pools] topsites=${#TOPSITES[@]} threat=${#THREAT[@]} curated_mix=${CURATED_MIX}%"
 EXFIL_TLDS=()
 [[ -f "$EXFIL_FILE" ]] && mapfile -t EXFIL_TLDS < <(grep -v '^\s*\(#\|$\)' "$EXFIL_FILE")
 [[ ${#EXFIL_TLDS[@]} -gt 0 ]] || EXFIL_PCT=0
@@ -145,13 +162,25 @@ while :; do
   for ((i=0; i<BURST; i++)); do
     R=$(( RANDOM % 100 )); RTYPE="A"
     if (( R < SUSPECT_PCT )); then
-      DOMAIN="${SUSPECT[RANDOM % ${#SUSPECT[@]}]}"; KIND="suspect"
+      # threat: sample the filtered UltraDDR-blocked pool, or a curated sinkhole
+      if (( ${#THREAT[@]} > 0 && RANDOM % 100 >= CURATED_MIX )); then
+        DOMAIN="${THREAT[$(rand30 ${#THREAT[@]})]}"
+      else
+        DOMAIN="${SUSPECT[RANDOM % ${#SUSPECT[@]}]}"
+      fi
+      KIND="suspect"
     elif (( R < SUSPECT_PCT + ADTRACK_PCT )); then
       DOMAIN="${ADTRACK[RANDOM % ${#ADTRACK[@]}]}"; KIND="adtrack"
     elif (( R < SUSPECT_PCT + ADTRACK_PCT + EXFIL_PCT )); then
       gen_exfil; DOMAIN="$EXFIL_FQDN"; RTYPE="$EXFIL_QTYPE"; KIND="exfil"
     else
-      DOMAIN="${BENIGN[RANDOM % ${#BENIGN[@]}]}"; KIND="benign"
+      # benign: sample the top-sites pool, or a curated category domain
+      if (( ${#TOPSITES[@]} > 0 && RANDOM % 100 >= CURATED_MIX )); then
+        DOMAIN="${TOPSITES[$(rand30 ${#TOPSITES[@]})]}"
+      else
+        DOMAIN="${BENIGN[RANDOM % ${#BENIGN[@]}]}"
+      fi
+      KIND="benign"
     fi
     if [[ "$MODE" == "doh" ]]; then query_doh "$DOMAIN"; else query_dig "$DOMAIN" "$RTYPE"; fi
     echo "$(date -Is),$MODE,$DOMAIN,$KIND,${VERDICT:-},${CATEGORIES:-},${ANSWER:-}" >> "$LOG_FILE"
