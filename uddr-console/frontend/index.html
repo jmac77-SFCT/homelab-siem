@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UltraDDR Console</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">UltraDDR <span>Console</span></div>
+    <div id="health" class="health">checking…</div>
+  </header>
+  <div class="layout">
+    <aside id="nav">
+      <input id="filter" placeholder="filter endpoints…" />
+      <div id="endpoints"></div>
+    </aside>
+    <main>
+      <section id="detail" class="empty">Select an endpoint on the left.</section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
