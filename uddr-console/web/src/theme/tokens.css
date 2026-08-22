@@ -1,0 +1,53 @@
+/* =============================================================================
+   DigiCert DDR Console — DESIGN TOKENS
+   -----------------------------------------------------------------------------
+   This is the single source of truth for brand. Everything else references
+   these variables. Replace every value marked TODO(brand) with the official
+   DigiCert brand-guidelines value. Nothing here is an official DigiCert asset —
+   the colors below are neutral placeholders chosen to read as enterprise-secure.
+   ========================================================================== */
+:root {
+  /* --- Brand palette -------------------------------------------------------- */
+  --brand-primary:        #0b3d91; /* TODO(brand): official DigiCert primary blue */
+  --brand-primary-hover:  #0a3379; /* TODO(brand): darker primary for hover */
+  --brand-primary-weak:   #e7eefb; /* TODO(brand): tint for backgrounds/selected */
+  --brand-accent:         #00a3e0; /* TODO(brand): secondary/accent */
+  --brand-ink:            #0a1a33; /* TODO(brand): brand near-black for headings */
+
+  /* --- Neutrals ------------------------------------------------------------- */
+  --bg:            #f5f7fa;
+  --surface:       #ffffff;
+  --surface-2:     #f0f3f7;
+  --border:        #d9e0ea;
+  --border-strong: #b9c4d4;
+  --text:          #1b2836;
+  --text-muted:    #5c6b7f;
+  --text-faint:    #8a97a8;
+
+  /* --- Semantic ------------------------------------------------------------- */
+  --success: #1a8f5c;
+  --danger:  #d13438;
+  --warning: #c77700;
+  --info:    var(--brand-accent);
+  --block:   #d13438; /* threat blocks */
+  --allow:   #1a8f5c;
+
+  /* --- Typography ----------------------------------------------------------- */
+  /* TODO(brand): swap to the official DigiCert typeface once provided. */
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px;
+  --fs-xl: 20px; --fs-2xl: 26px; --fs-3xl: 32px;
+
+  /* --- Shape & elevation ---------------------------------------------------- */
+  --radius-sm: 6px; --radius: 10px; --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(16, 32, 56, 0.06);
+  --shadow:    0 2px 8px rgba(16, 32, 56, 0.08);
+  --shadow-lg: 0 8px 28px rgba(16, 32, 56, 0.12);
+
+  /* --- Layout metrics ------------------------------------------------------- */
+  --sidebar-w: 248px;
+  --topbar-h: 60px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-8: 48px;
+}
